@@ -269,7 +269,58 @@ El asistente debe recibir una pregunta en lenguaje natural y responder usando co
 
 ---
 
-### Paso 1.2: Crear instrucciones de Copilot y estructura del proyecto
+### Paso 1.2: Documentar la especificación del proyecto 📝
+
+> 💡 **¿Por qué este paso?** La respuesta que Copilot acaba de darte en Modo Ask contiene decisiones de arquitectura valiosas — pero si no la guardamos, se pierde en el historial del chat. Al guardarla en `doc/spec.md`, convertimos esa exploración en **contexto permanente** que Copilot usará para guiar todo el código que genere después.
+
+🤖 **PROMPT en Modo Agent 🤖:**
+
+```
+Basándote en la conversación anterior sobre la arquitectura del asistente de Contoso Gobierno, crea el archivo doc/spec.md con la especificación técnica del proyecto.
+
+El documento debe incluir:
+
+1. Nombre del proyecto y descripción breve
+2. Arquitectura: aplicación monolítica Flask con API REST + Asistente IA
+3. Entidades del sistema:
+   - Trámites: id, nombre, categoría, descripción, requisitos, costo, tiempo estimado
+   - Ciudadanos: id, nombre, CURP, email (opcional, para futuro)
+4. Endpoints de la API:
+   - /api/tramites (CRUD)
+   - /api/asistente (POST — recibe pregunta, responde con Azure OpenAI)
+5. Patrón de integración IA: RAG simplificado
+   - Los trámites del sistema se inyectan como contexto en el system prompt
+   - Azure OpenAI genera respuestas basadas en datos reales
+6. Stack tecnológico: Python 3.10+, Flask, Flask-RESTX, Azure OpenAI, pytest
+7. Restricciones: datos en memoria, sin base de datos, todo en español
+```
+
+📝 **Observa:** Copilot toma las decisiones de la exploración anterior y las estructura en un documento formal. Este archivo ahora vive en tu proyecto y Copilot lo **usará automáticamente** como contexto cuando uses `@workspace` en los pasos siguientes.
+
+> 🧠 **Concepto clave: ¿Cómo guiar a GitHub Copilot con archivos del proyecto?**
+>
+> GitHub Copilot no solo lee tu código — también lee archivos de configuración especiales que influyen en cómo genera código. Hay tres mecanismos principales:
+>
+> **1. Instructions** (`.github/copilot-instructions.md`)
+> Son las **reglas globales** del proyecto. Se aplican automáticamente a todas las interacciones de Copilot Chat en tu workspace. Aquí defines estándares de código, idioma, convenciones de nomenclatura y contexto general del proyecto. Solo puede haber un archivo de instrucciones globales, y se aplica siempre.
+>
+> **2. Agents** (`.github/agents/*.md`)
+> Son **asistentes especializados** que puedes invocar por nombre. Cada archivo `.md` en esta carpeta define un agente con un rol específico — por ejemplo, un agente experto en seguridad, otro en pruebas, otro en documentación. Los invocas explícitamente en Copilot Chat cuando necesitas ese expertise puntual.
+>
+> **3. Skills** (archivos de contexto como `doc/spec.md`)
+> Cualquier archivo de documentación en tu proyecto actúa como **conocimiento adicional** que Copilot puede consultar. Cuando usas `@workspace`, Copilot indexa y lee estos archivos para entender mejor tu proyecto. El `doc/spec.md` que acabamos de crear funciona exactamente así: le da a Copilot una visión clara de la arquitectura y las decisiones técnicas.
+>
+> | Mecanismo | Archivo | Se aplica... | Ejemplo |
+> |-----------|---------|-------------|---------|
+> | Instructions | `.github/copilot-instructions.md` | Automáticamente siempre | "Todo el código en español, PEP 8" |
+> | Agents | `.github/agents/seguridad.md` | Cuando lo invocas | "Revisa vulnerabilidades OWASP" |
+> | Skills/Docs | `doc/spec.md`, `doc/api.md`, etc. | Con `@workspace` | "La API usa RAG simplificado" |
+>
+> En este workshop usaremos **Instructions** (paso 1.3) para las reglas globales y **doc/spec.md** (este paso) como contexto arquitectónico. Los **Agents** son un tema más avanzado que puedes explorar después — consulta [github/awesome-copilot](https://github.com/github/awesome-copilot) para ejemplos.
+
+---
+
+### Paso 1.3: Crear instrucciones de Copilot y estructura del proyecto
 
 🤖 **PROMPT en Modo Agent 🤖:**
 
@@ -281,8 +332,9 @@ Necesito:
    - Todo en español (código, comentarios, documentación)
    - Python 3.10+, Flask, Flask-RESTX, PEP 8
    - Contexto: sistema de trámites ciudadanos con asistente IA usando Azure OpenAI
+   - Referenciar doc/spec.md como documento de especificación técnica del proyecto
 
-2. La estructura del proyecto:
+2. La estructura del proyecto (la carpeta doc/ con spec.md ya existe del paso anterior):
    - Un archivo principal para Flask (app.py)
    - Una carpeta modelos/ para los modelos de datos (con __init__.py)
    - Una carpeta servicios/ para la lógica de negocio y la integración con Azure OpenAI
@@ -297,6 +349,7 @@ Necesito:
 ```bash
 mkdir -p contoso-gobierno-ia/modelos contoso-gobierno-ia/servicios
 mkdir -p contoso-gobierno-ia/templates contoso-gobierno-ia/static contoso-gobierno-ia/tests
+mkdir -p contoso-gobierno-ia/doc
 touch contoso-gobierno-ia/app.py contoso-gobierno-ia/requirements.txt
 touch contoso-gobierno-ia/modelos/__init__.py contoso-gobierno-ia/tests/__init__.py
 touch contoso-gobierno-ia/servicios/__init__.py
@@ -309,9 +362,29 @@ cd contoso-gobierno-ia
 pip install -r requirements.txt
 ```
 
+> 📝 **Nota:** Después de este paso tu proyecto debería tener esta estructura:
+> ```
+> contoso-gobierno-ia/
+> ├── .github/
+> │   └── copilot-instructions.md   ← Reglas globales para Copilot
+> ├── doc/
+> │   └── spec.md                   ← Especificación técnica (Paso 1.2)
+> ├── modelos/
+> │   └── __init__.py
+> ├── servicios/
+> │   └── __init__.py
+> ├── templates/
+> ├── static/
+> ├── tests/
+> │   └── __init__.py
+> ├── app.py
+> ├── requirements.txt
+> └── .env.example
+> ```
+
 ---
 
-### Paso 1.3: Configurar las credenciales de Azure OpenAI
+### Paso 1.4: Configurar las credenciales de Azure OpenAI
 
 > 🔑 **Momento de las credenciales:** El instructor compartirá el **Endpoint** y **API Key** de Azure OpenAI. Si tienes tus propias credenciales, úsalas.
 
@@ -334,7 +407,7 @@ AZURE_OPENAI_MODEL=gpt-4o
 
 ---
 
-### Paso 1.4: Crear el modelo de trámites
+### Paso 1.5: Crear el modelo de trámites
 
 🤖 **PROMPT en Modo Agent 🤖:**
 
@@ -355,7 +428,7 @@ El modelo debe incluir:
 
 ---
 
-### Paso 1.5: Crear el servicio del asistente IA
+### Paso 1.6: Crear el servicio del asistente IA
 
 > 💡 **Este es el paso clave del workshop.** Aquí conectamos Azure OpenAI con los datos del sistema.
 
@@ -384,7 +457,7 @@ Este servicio debe:
 
 ---
 
-### Paso 1.6: Crear la aplicación Flask monolítica
+### Paso 1.7: Crear la aplicación Flask monolítica
 
 🤖 **PROMPT en Modo Agent 🤖:**
 
@@ -406,7 +479,7 @@ Esta aplicación debe integrar todo en un solo servidor Flask:
 
 ---
 
-### Paso 1.7: Ejecutar y probar el asistente
+### Paso 1.8: Ejecutar y probar el asistente
 
 ```bash
 cd contoso-gobierno-ia
@@ -432,7 +505,7 @@ python app.py
 
 ---
 
-### Paso 1.8: Mejorar el system prompt (⭐ desafío bonus)
+### Paso 1.9: Mejorar el system prompt (⭐ desafío bonus)
 
 > 📝 **Este paso es OPCIONAL** para quienes terminaron antes.
 
@@ -709,6 +782,7 @@ Después:
 
 ### Configuración
 - [ ] `.github/copilot-instructions.md` — Instrucciones de Copilot
+- [ ] `doc/spec.md` — Especificación técnica del proyecto
 - [ ] `.env` — Credenciales de Azure OpenAI configuradas
 - [ ] `.gitignore` — Incluye `.env`
 
