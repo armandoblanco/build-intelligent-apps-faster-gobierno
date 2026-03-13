@@ -19,6 +19,7 @@
 - [Ejercicio 1: API REST + Asistente IA](#-ejercicio-1-api-rest--asistente-ia-con-copilot-35-40-min)
 - [Ejercicio 2: Frontend con Chat IA](#-ejercicio-2-frontend-con-chat-ia-25-30-min)
 - [Ejercicio 3: Tests y Refactoring](#-ejercicio-3-tests-y-refactoring-20-25-min)
+- [Lecciones Bonus: Containerización y Despliegue](#-lecciones-bonus-containerización-y-despliegue-en-azure-opcional)
 - [Referencia Rápida](#-referencia-rápida)
 - [Recursos Adicionales](#-recursos-adicionales)
 
@@ -806,6 +807,148 @@ Después:
 
 ---
 
+## 🎁 Lecciones Bonus: Containerización y Despliegue en Azure (Opcional)
+
+> 📝 **Estas lecciones son completamente OPCIONALES.** Están diseñadas para después del workshop o para participantes avanzados que quieran llevar su aplicación a producción. No forman parte de las 2 horas del taller. Requieren una suscripción de Azure con permisos para crear recursos.
+
+### Bonus 1: Containerizar la aplicación con Docker 🐳
+
+> 💡 **¿Por qué containerizar?** Docker empaqueta tu aplicación con todas sus dependencias en una imagen portable que se ejecuta de forma idéntica en cualquier entorno — tu laptop, un servidor, o Azure.
+
+🤖 **PROMPT en Modo Agent 🤖:**
+
+```
+@workspace Crea un Dockerfile para la aplicación de Contoso Gobierno.
+
+La imagen debe:
+- Usar python:3.11-slim como base
+- Copiar requirements.txt e instalar dependencias
+- Copiar el código de la aplicación
+- Exponer el puerto 5000
+- Usar gunicorn como servidor de producción en lugar del servidor de desarrollo de Flask
+- No incluir el archivo .env (las variables se pasan como variables de entorno del contenedor)
+
+Crea también un archivo .dockerignore que excluya .env, __pycache__, tests/ y .github/
+```
+
+**Verificar localmente (requiere Docker instalado):**
+```bash
+docker build -t contoso-gobierno-ia .
+docker run -p 5000:5000 --env-file .env contoso-gobierno-ia
+```
+
+---
+
+### Bonus 2: Crear infraestructura en Azure con Copilot 🏗️
+
+> 💡 **¿Qué vamos a crear?** Un Azure Container Registry (ACR) para guardar la imagen Docker y un Azure Container App para ejecutar la aplicación en la nube.
+
+🤖 **PROMPT en Modo Agent 🤖:**
+
+```
+@workspace Crea un script de infraestructura en infra/setup-azure.sh que use Azure CLI para:
+
+1. Crear un Resource Group llamado "rg-contoso-gobierno"
+2. Crear un Azure Container Registry (ACR) llamado "acrcontosogobierno"
+3. Crear un Azure Container Apps Environment
+4. Crear un Azure Container App que:
+   - Use la imagen del ACR
+   - Tenga variables de entorno para AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY y AZURE_OPENAI_MODEL
+   - Exponga el puerto 5000 con ingress externo
+   - Tenga 0.5 CPU y 1Gi de memoria
+
+Agrega comentarios en español que expliquen cada paso.
+Incluye al inicio del script variables configurables para la región (por defecto: eastus) y nombres de recursos.
+```
+
+> 📝 **Nota:** Antes de ejecutar el script necesitas tener [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) instalado y haber ejecutado `az login`.
+
+---
+
+### Bonus 3: CI/CD con GitHub Actions 🚀
+
+> 💡 **¿Qué es CI/CD?** Continuous Integration / Continuous Deployment. Cada vez que hagas push a tu repositorio, GitHub Actions automáticamente ejecuta los tests, construye la imagen Docker y la despliega en Azure.
+
+🤖 **PROMPT en Modo Agent 🤖:**
+
+```
+@workspace Crea un workflow de GitHub Actions en .github/workflows/deploy.yml para la aplicación de Contoso Gobierno.
+
+El workflow debe:
+1. Dispararse en push a la rama main
+2. Tener dos jobs:
+
+   Job 1 - test:
+   - Instalar Python 3.11
+   - Instalar dependencias
+   - Ejecutar pytest (los tests del asistente usan mock, así que no necesitan credenciales reales)
+
+   Job 2 - deploy (solo si test pasa):
+   - Login en Azure usando AZURE_CREDENTIALS (secret del repositorio)
+   - Login en Azure Container Registry
+   - Construir la imagen Docker y hacer push al ACR
+   - Actualizar el Azure Container App con la nueva imagen
+
+Agrega comentarios en español para cada paso.
+Incluye una nota al inicio del archivo sobre los secrets necesarios en el repositorio.
+```
+
+#### Secrets necesarios en GitHub
+
+Para que el workflow funcione, necesitas configurar estos secrets en tu repositorio (Settings → Secrets and variables → Actions):
+
+| Secret | Descripción | Cómo obtenerlo |
+|--------|-------------|----------------|
+| `AZURE_CREDENTIALS` | Credenciales del Service Principal | `az ad sp create-for-rbac --name "sp-contoso-gobierno" --role contributor --scopes /subscriptions/{id}` |
+| `ACR_LOGIN_SERVER` | URL del Container Registry | `acrcontosogobierno.azurecr.io` |
+| `ACR_USERNAME` | Usuario del ACR | Disponible en el portal de Azure o con `az acr credential show` |
+| `ACR_PASSWORD` | Contraseña del ACR | Disponible en el portal de Azure o con `az acr credential show` |
+| `AZURE_OPENAI_ENDPOINT` | Endpoint de Azure OpenAI | El mismo que usaste en `.env` |
+| `AZURE_OPENAI_API_KEY` | API Key de Azure OpenAI | La misma que usaste en `.env` |
+| `AZURE_OPENAI_MODEL` | Nombre del deployment | El mismo que usaste en `.env` |
+
+---
+
+### Bonus 4: Verificar el despliegue 🌐
+
+Una vez que el workflow termine exitosamente:
+
+1. Ve al [Portal de Azure](https://portal.azure.com) → Container Apps → contoso-gobierno-ia
+2. Copia la URL de la aplicación (algo como `https://contoso-gobierno-ia.azurecontainerapps.io`)
+3. Abre la URL en el navegador — deberías ver tu frontend con el chat del asistente IA funcionando en la nube
+
+🤖 **PROMPT extra para validar:**
+
+```
+@workspace Crea un script scripts/health_check.py que verifique que la aplicación desplegada está funcionando correctamente:
+- Hacer GET a /api/tramites y verificar que retorna 200
+- Hacer POST a /api/asistente con una pregunta de prueba y verificar que retorna una respuesta
+- Imprimir el resultado en formato amigable con colores (verde = OK, rojo = error)
+```
+
+---
+
+### 🛠️ Troubleshooting Bonus
+
+| Problema | Solución |
+|----------|----------|
+| `az login` falla | Verifica que Azure CLI esté instalado y actualizado |
+| Docker build falla | Verifica que el Dockerfile copie todos los archivos necesarios |
+| Container App no arranca | Revisa los logs: `az containerapp logs show --name contoso-gobierno-ia --resource-group rg-contoso-gobierno` |
+| GitHub Actions falla en deploy | Verifica que los secrets estén configurados correctamente en el repositorio |
+| La app desplegada no conecta con Azure OpenAI | Verifica que las variables de entorno estén configuradas en el Container App |
+
+### Checklist Bonus
+
+- [ ] `Dockerfile` — Imagen de la aplicación
+- [ ] `.dockerignore` — Archivos excluidos
+- [ ] `infra/setup-azure.sh` — Script de infraestructura
+- [ ] `.github/workflows/deploy.yml` — Pipeline CI/CD
+- [ ] Secrets configurados en el repositorio de GitHub
+- [ ] Aplicación accesible en Azure Container Apps
+
+---
+
 ## 📚 Recursos Adicionales
 
 ### Documentación Oficial
@@ -817,13 +960,15 @@ Después:
 - [Flask-RESTX Documentation](https://flask-restx.readthedocs.io/)
 - [pytest Documentation](https://docs.pytest.org/)
 - [python-dotenv](https://pypi.org/project/python-dotenv/)
+- [Docker Documentation](https://docs.docker.com/)
+- [Azure Container Apps](https://learn.microsoft.com/en-us/azure/container-apps/)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
 
 ### Siguiente Nivel
 
+- **Containerización y CI/CD:** Consulta las [Lecciones Bonus](#-lecciones-bonus-containerización-y-despliegue-en-azure-opcional) al final de este documento para empaquetar la app en Docker, crear infraestructura en Azure y automatizar el despliegue con GitHub Actions
 - **RAG completo:** Agregar Azure AI Search para buscar en documentos PDF de normativas gubernamentales
 - **Historial de conversación:** Implementar multi-turn chat guardando el contexto de la conversación
-- **Containerización:** Empaquetar la aplicación en Docker y desplegar en Azure Container Apps
-- **CI/CD:** Automatizar el despliegue con GitHub Actions
 - **Agentes Copilot:** Crear un agente en `.github/agents/` para especializar a Copilot en el dominio gubernamental
 
 ---
